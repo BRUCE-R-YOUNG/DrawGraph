@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<script src="https://sdk.amazonaws.com/js/aws-sdk-2.7.16.min.js">
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/canvasjs/1.7.0/canvasjs.min.js "></script>
+<script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+<script language="javascript" src="js/createGraph.js"></script>
+
+<script>
+    $(document).ready(function() {
+        setInterval(function() {
+            $("#chart").load($(createChart))
+        }, 100000);
+    });
+</script>
+
+<body onload="createChart();">
+    <div id=chart> </div>
+</body>
+
+</html>
+
+
+
+<div>
+    <canvas id="myChart"></canvas>
+</div>
