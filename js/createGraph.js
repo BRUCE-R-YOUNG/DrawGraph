@@ -1,5 +1,5 @@
 var device_name = "device_name"
-var hosturl = "API URL"
+var hosturl = "API_URL"
 var apiurl = hosturl + "/data/" + device_name
 
 //-------------------------------------------
