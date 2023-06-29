@@ -7,7 +7,7 @@ import traceback
 import os
 
 # -----Dynamo Info change here------
-TABLE_NAME = os.environ.get('TABLE_NAME', "default")
+TABLE_NAME = os.environ.get('TABLE_NAME', "default")  # Lambda関数の環境変数を取得するため
 DDB_PRIMARY_KEY = "DEVICE_NAME"
 DDB_SORT_KEY = "TIMESTAMP"
 # -----Dynamo Info change here------
