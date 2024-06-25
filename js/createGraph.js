@@ -12,13 +12,16 @@ function createChart() {
 //-------------------------------------------
 function reqGet(device_name) {
     console.log("reqGet() start");
-    res = $.get(apiurl, function() {
-
+    $.get(apiurl, function(data) {
         }).done(function(data) {
-            jsonData = JSON.parse(data.body);
+            // Ensure data is already parsed
+            if (typeof data === "string") {
+                data = JSON.parse(data);
+            }
+            var jsonData = data[device_name];
             console.log(jsonData);
 
-            drawChart(jsonData[device_name]);
+            drawChart(jsonData);
 
         })
         .fail(function(jqXHR, textStatus, errorThrown) {
@@ -30,11 +33,11 @@ function reqGet(device_name) {
 //-------------------------------------------
 function drawChart(vals) {
     console.log("drawChart() start");
-    var val_list = []
+    var val_list = [];
     for (var i = 0; i < vals.length; i++) {
-        console.log(vals[i])
+        console.log(vals[i]);
         var item = { "label": vals[i].timestamp, "y": parseFloat(vals[i].value) };
-        val_list.push(item)
+        val_list.push(item);
     }
     //! DrawChart kick
     var chart = new CanvasJS.Chart("chart", {
@@ -48,3 +51,4 @@ function drawChart(vals) {
     });
     chart.render();
 }
+
