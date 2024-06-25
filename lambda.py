@@ -8,8 +8,8 @@ import os
 
 # -----Dynamo Info change here------
 TABLE_NAME = os.environ.get('TABLE_NAME', "default")  # Lambda関数の環境変数を取得するため
-DDB_PRIMARY_KEY = "DEVICE_NAME"
-DDB_SORT_KEY = "TIMESTAMP"
+DDB_PRIMARY_KEY = "TIMESTAMP"
+DDB_SORT_KEY = "DEVICE_NAME"
 # -----Dynamo Info change here------
 
 print(TABLE_NAME)
@@ -65,7 +65,7 @@ def lambda_handler(event, context):
         # pathParameters = event.get('pathParameters')
         # print(pathParameters)
 
-        DEVICE_NAME = "temp_humi_press_bruce_20230626"
+        DEVICE_NAME = "temp_humi_press_bruce_20240624"
         requestTime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
         resItemDict = {DEVICE_NAME: ""}
