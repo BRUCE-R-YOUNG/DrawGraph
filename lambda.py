@@ -1,70 +1,81 @@
+from __future__ import print_function
 import boto3
-import json
 from boto3.dynamodb.conditions import Key
+import datetime
+import json
+import traceback
+import os
 
-# DynamoDBのクライアントを設定
+# -----Dynamo Info change here------
+TABLE_NAME = os.environ.get('TABLE_NAME', "default")
+DDB_PRIMARY_KEY = "DEVICE_NAME"
+DDB_SORT_KEY = "TIMESTAMP"
+# -----Dynamo Info change here------
+
+print(TABLE_NAME)
+
+
 dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(TABLE_NAME)
+
+# ------------------------------------------------------------------------
+
+
+def dynamoQuery(DEVICE_NAME, requestTime):
+    print("dynamoQuery start")
+    valList = []
+    res = table.query(
+        KeyConditionExpression=Key(DDB_PRIMARY_KEY).eq(DEVICE_NAME) &
+        Key(DDB_SORT_KEY).lt(requestTime),
+        ScanIndexForward=False,
+        Limit=30
+    )
+
+    for row in res['Items']:
+        val = row['TEMPERATURE']
+        itemDict = {
+            "timestamp": row['TIMESTAMP'],
+            "value": str(val)
+        }
+
+        valList.append(itemDict)
+
+    return valList
+
+# ------------------------------------------------------------------------
+# call by Lambda here.
+#  Event structure : API-Gateway Lambda proxy post
+# ------------------------------------------------------------------------
+
 
 def lambda_handler(event, context):
-    # DynamoDBのテーブル名
-    table_name = "temp_humi_press_bruce_20240624"
-    table = dynamodb.Table(table_name)
-    
-    # パーティションキーとソートキーの値をイベントから取得
-    partition_key = event.get('TIMESTAMP')
-    sort_key = event.get('DEVICE_NAME')
-    
-    # デバッグログを追加
-    print(f"Received event: {json.dumps(event, indent=2)}")
-    print(f"Partition Key: {partition_key}")
-    print(f"Sort Key: {sort_key}")
-    
-    if not partition_key or not sort_key:
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Partition key or sort key not provided.')
-        }
-    
-    # DynamoDBからアイテムを取得
-    try:
-        response = table.get_item(
-            Key={
-                'TIMESTAMP': partition_key,
-                'DEVICE_NAME': sort_key
-            }
-        )
-    except Exception as e:
-        print(f'Error getting item from DynamoDB: {str(e)}')
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f'Error getting item from DynamoDB: {str(e)}')
-        }
-    
-    # アイテムが存在しない場合の処理
-    if 'Item' not in response:
-        return {
-            'statusCode': 404,
-            'body': json.dumps('Item not found in DynamoDB.')
-        }
-    
-    item = response['Item']
-    
-    # デバッグのためにアイテム全体をログに出力
-    print(f"Retrieved item: {json.dumps(item, indent=2)}")
-    
-    # device_dataマップからTEMPERATUREフィールドを取得
-    device_data = item.get('device_data', {})
-    temperature = device_data.get('TEMPERATURE')
-    
-    if temperature is None:
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Temperature not found in the item.')
-        }
-    
-    return {
-        'statusCode': 200,
-        'body': json.dumps({
-            'temperature': temperature
-        })
+    # Lambda Proxy response back template
+    HttpRes = {
+        "statusCode": 200,
+        "headers": {"Access-Control-Allow-Origin": "*"},
+        "body": "",
+        "isBase64Encoded": False
     }
+
+    try:
+        print("lambda_handler start")
+        print(json.dumps(event))
+
+        # get Parameters
+        # pathParameters = event.get('pathParameters')
+        # print(pathParameters)
+
+        DEVICE_NAME = "temp_humi_press_bruce_20230626"
+        requestTime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+
+        resItemDict = {DEVICE_NAME: ""}
+        resItemDict[DEVICE_NAME] = dynamoQuery(DEVICE_NAME, requestTime)
+        HttpRes['body'] = json.dumps(resItemDict)
+
+    except Exception as e:
+        print(traceback.format_exc())
+        HttpRes["statusCode"] = 500
+        HttpRes["body"] = "Lambda error. check lambda log"
+
+    print("response:{}".format(json.dumps(HttpRes)))
+    return HttpRes
