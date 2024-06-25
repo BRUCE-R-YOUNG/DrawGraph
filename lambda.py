@@ -6,50 +6,40 @@ import json
 import traceback
 import os
 
-# -----Dynamo Info change here------
-TABLE_NAME = os.environ.get('TABLE_NAME', "default")  # Lambda関数の環境変数を取得するため
+# DynamoDB情報
+TABLE_NAME = os.environ.get('TABLE_NAME', "default")
 DDB_PRIMARY_KEY = "TIMESTAMP"
 DDB_SORT_KEY = "DEVICE_NAME"
-# -----Dynamo Info change here------
 
-print(TABLE_NAME)
-
+print("Using DynamoDB Table:", TABLE_NAME)
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(TABLE_NAME)
 
-# ------------------------------------------------------------------------
-
-
-def dynamoQuery(DEVICE_NAME, requestTime):
+def dynamoQuery(device_name, request_time):
     print("dynamoQuery start")
     valList = []
-    res = table.query(
-        KeyConditionExpression=Key(DDB_PRIMARY_KEY).eq(DEVICE_NAME) &
-        Key(DDB_SORT_KEY).lt(requestTime),
-        ScanIndexForward=False,
-        Limit=30
-    )
+    try:
+        res = table.query(
+            KeyConditionExpression=Key(DDB_SORT_KEY).eq(device_name) & Key(DDB_PRIMARY_KEY).lt(request_time),
+            ScanIndexForward=False,
+            Limit=30
+        )
 
-    for row in res['Items']:
-        val = row['TEMPERATURE']
-        itemDict = {
-            "timestamp": row['TIMESTAMP'],
-            "value": str(val)
-        }
-
-        valList.append(itemDict)
-
+        for row in res['Items']:
+            val = row['TEMPERATURE']
+            itemDict = {
+                "timestamp": row['TIMESTAMP'],
+                "value": str(val)
+            }
+            valList.append(itemDict)
+    except Exception as e:
+        print("Error querying DynamoDB:", str(e))
+        print(traceback.format_exc())
+    
     return valList
 
-# ------------------------------------------------------------------------
-# call by Lambda here.
-#  Event structure : API-Gateway Lambda proxy post
-# ------------------------------------------------------------------------
-
-
 def lambda_handler(event, context):
-    # Lambda Proxy response back template
     HttpRes = {
         "statusCode": 200,
         "headers": {"Access-Control-Allow-Origin": "*"},
@@ -61,21 +51,18 @@ def lambda_handler(event, context):
         print("lambda_handler start")
         print(json.dumps(event))
 
-        # get Parameters
-        # pathParameters = event.get('pathParameters')
-        # print(pathParameters)
+        device_name = "temp_humi_press_bruce_20240624"
+        request_time = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
-        DEVICE_NAME = "temp_humi_press_bruce_20240624"
-        requestTime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-
-        resItemDict = {DEVICE_NAME: ""}
-        resItemDict[DEVICE_NAME] = dynamoQuery(DEVICE_NAME, requestTime)
+        resItemDict = {device_name: ""}
+        resItemDict[device_name] = dynamoQuery(device_name, request_time)
         HttpRes['body'] = json.dumps(resItemDict)
 
     except Exception as e:
+        print("Error in lambda_handler:", str(e))
         print(traceback.format_exc())
         HttpRes["statusCode"] = 500
-        HttpRes["body"] = "Lambda error. check lambda log"
+        HttpRes["body"] = "Lambda error. Check lambda log."
 
-    print("response:{}".format(json.dumps(HttpRes)))
+    print("response: {}".format(json.dumps(HttpRes)))
     return HttpRes
