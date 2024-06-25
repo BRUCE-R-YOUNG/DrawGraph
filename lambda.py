@@ -6,39 +6,47 @@ import json
 import traceback
 import os
 
-# DynamoDB情報
+# -----Dynamo Info change here------
 TABLE_NAME = os.environ.get('TABLE_NAME', "default")
 DDB_PRIMARY_KEY = "DEVICE_NAME"
 DDB_SORT_KEY = "TIMESTAMP"
+# -----Dynamo Info change here------
 
 print(TABLE_NAME)
+
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(TABLE_NAME)
 
-def dynamoQuery(DEVICE_NAME, startTime, endTime):
+# ------------------------------------------------------------------------
+
+
+def dynamoQuery(DEVICE_NAME, requestTime):
     print("dynamoQuery start")
     valList = []
-    try:
-        res = table.query(
-            KeyConditionExpression=Key(DDB_PRIMARY_KEY).eq(DEVICE_NAME) & Key(DDB_SORT_KEY).between(startTime, endTime),
-            ScanIndexForward=False,
-            Limit=30
-        )
+    res = table.query(
+        KeyConditionExpression=Key(DDB_PRIMARY_KEY).eq(DEVICE_NAME) &
+        Key(DDB_SORT_KEY).lt(requestTime),
+        ScanIndexForward=False,
+        Limit=30
+    )
 
-        for row in res['Items']:
-            val = row['device_data']['TEMPERATURE']
-            itemDict = {
-                "timestamp": row['TIMESTAMP'],
-                "value": str(val)
-            }
+    for row in res['Items']:
+        val = row['TEMPERATURE']
+        itemDict = {
+            "timestamp": row['TIMESTAMP'],
+            "value": str(val)
+        }
 
-            valList.append(itemDict)
-    except Exception as e:
-        print("Error querying DynamoDB:", str(e))
-        print(traceback.format_exc())
+        valList.append(itemDict)
 
     return valList
+
+# ------------------------------------------------------------------------
+# call by Lambda here.
+#  Event structure : API-Gateway Lambda proxy post
+# ------------------------------------------------------------------------
+
 
 def lambda_handler(event, context):
     # Lambda Proxy response back template
@@ -53,12 +61,15 @@ def lambda_handler(event, context):
         print("lambda_handler start")
         print(json.dumps(event))
 
-        DEVICE_NAME = "temp_humi_press_bruce_20240624"
-        endTime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        startTime = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%S')
+        # get Parameters
+        # pathParameters = event.get('pathParameters')
+        # print(pathParameters)
+
+        DEVICE_NAME = "temp_humi_press_bruce_20230626"
+        requestTime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
         resItemDict = {DEVICE_NAME: ""}
-        resItemDict[DEVICE_NAME] = dynamoQuery(DEVICE_NAME, startTime, endTime)
+        resItemDict[DEVICE_NAME] = dynamoQuery(DEVICE_NAME, requestTime)
         HttpRes['body'] = json.dumps(resItemDict)
 
     except Exception as e:
