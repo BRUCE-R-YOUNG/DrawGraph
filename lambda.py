@@ -8,8 +8,8 @@ import os
 
 # ----- Dynamo Info (必要に応じて環境変数から取得) -----
 TABLE_NAME = os.environ.get('TABLE_NAME', "default")
-DDB_PRIMARY_KEY = "TIMESTAMP"      # 修正: パーティションキー
-DDB_SORT_KEY = "DEVICE_NAME"       # 修正: ソートキー
+DDB_PRIMARY_KEY = "TIMESTAMP"
+DDB_SORT_KEY = "DEVICE_NAME"
 # -------------------------------------------------------
 
 print("TABLE_NAME:", TABLE_NAME)
