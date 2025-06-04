@@ -1,16 +1,16 @@
 from __future__ import print_function
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr
 import datetime
 import json
 import traceback
 import os
 
-# -----Dynamo Info change here------
+# ----- Dynamo Info (必要に応じて環境変数から取得) -----
 TABLE_NAME = os.environ.get('TABLE_NAME', "default")
-DDB_PRIMARY_KEY = "DEVICE_NAME"
-DDB_SORT_KEY = "TIMESTAMP"
-# -----Dynamo Info change here------
+DDB_PRIMARY_KEY = "TIMESTAMP"      # 修正: パーティションキー
+DDB_SORT_KEY = "DEVICE_NAME"       # 修正: ソートキー
+# -------------------------------------------------------
 
 print("TABLE_NAME:", TABLE_NAME)
 
@@ -19,38 +19,42 @@ table = dynamodb.Table(TABLE_NAME)
 
 # ------------------------------------------------------------------------
 
-def dynamoQuery(DEVICE_NAME, requestTime):
+
+def dynamoQuery(device_name, request_time):
     print("dynamoQuery start")
-    valList = []
-    print("Query parameters - DEVICE_NAME: {}, requestTime: {}".format(DEVICE_NAME, requestTime))
+    val_list = []
+    print(
+        f"Query parameters - DEVICE_NAME: {device_name}, requestTime: {request_time}")
+
     try:
-        res = table.query(
-            KeyConditionExpression=Key(DDB_PRIMARY_KEY).eq(DEVICE_NAME) &
-            Key(DDB_SORT_KEY).gte(requestTime),  # changed from le to lte
-            ScanIndexForward=False,
+        res = table.scan(
+            FilterExpression=Attr("DEVICE_NAME").eq(
+                device_name) & Attr("TIMESTAMP").gte(request_time),
             Limit=30
         )
     except Exception as e:
-        print("Error executing query: ", e)
+        print("Error executing scan: ", e)
         raise e
 
-    print("Query result: ", res)
+    print("Scan result: ", res)
 
     if 'Items' in res:
         for row in res['Items']:
             if 'device_data' in row and 'TEMPERATURE' in row['device_data']:
                 val = row['device_data']['TEMPERATURE']
-                itemDict = {
+                item_dict = {
                     "timestamp": row['TIMESTAMP'],
                     "value": str(val)
                 }
-                valList.append(itemDict)
+                val_list.append(item_dict)
 
-    return valList
+    return val_list
+
+# ------------------------------------------------------------------------
 
 
 def lambda_handler(event, context):
-    HttpRes = {
+    http_res = {
         "statusCode": 200,
         "headers": {"Access-Control-Allow-Origin": "*"},
         "body": "",
@@ -61,19 +65,22 @@ def lambda_handler(event, context):
         print("lambda_handler start")
         print(json.dumps(event))
 
-        DEVICE_NAME = "temp_humi_press_bruce_20240624"  
-        requestTime = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        # クエリ対象のDEVICE_NAMEを指定
+        DEVICE_NAME = "temp_humi_bruce_20240620"
 
-        print("Request Time: ", requestTime)
+        # 現在時刻（UTC）でのタイムスタンプを取得
+        request_time = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        print("Request Time: ", request_time)
 
-        resItemDict = {DEVICE_NAME: ""}
-        resItemDict[DEVICE_NAME] = dynamoQuery(DEVICE_NAME, requestTime)
-        HttpRes['body'] = json.dumps(resItemDict)
+        # デバイス名に対応する温度データを取得
+        res_item_dict = {DEVICE_NAME: dynamoQuery(DEVICE_NAME, request_time)}
+
+        http_res['body'] = json.dumps(res_item_dict)
 
     except Exception as e:
         print(traceback.format_exc())
-        HttpRes["statusCode"] = 500
-        HttpRes["body"] = "Lambda error. check lambda log"
+        http_res["statusCode"] = 500
+        http_res["body"] = "Lambda error. check lambda log"
 
-    print("response:{}".format(json.dumps(HttpRes)))
-    return HttpRes
+    print("response:", json.dumps(http_res))
+    return http_res
