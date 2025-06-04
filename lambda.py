@@ -56,7 +56,11 @@ def dynamoQuery(device_name, request_time):
 def lambda_handler(event, context):
     http_res = {
         "statusCode": 200,
-        "headers": {"Access-Control-Allow-Origin": "*"},
+        "headers": {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        },
         "body": "",
         "isBase64Encoded": False
     }
@@ -65,16 +69,12 @@ def lambda_handler(event, context):
         print("lambda_handler start")
         print(json.dumps(event))
 
-        # クエリ対象のDEVICE_NAMEを指定
         DEVICE_NAME = "temp_humi_bruce_20240620"
+        request_time = "1970-01-01T00:00:00"
 
-        # 現在時刻（UTC）でのタイムスタンプを取得
-        request_time = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         print("Request Time: ", request_time)
 
-        # デバイス名に対応する温度データを取得
         res_item_dict = {DEVICE_NAME: dynamoQuery(DEVICE_NAME, request_time)}
-
         http_res['body'] = json.dumps(res_item_dict)
 
     except Exception as e:
