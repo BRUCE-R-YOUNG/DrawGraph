@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Chart.js Example</title>
+    <title>温度データグラフ</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
@@ -13,69 +13,65 @@
     </style>
 </head>
 <body>
+    <h2 style="text-align: center;">温度推移（DynamoDB）</h2>
     <div id="chart-container">
         <canvas id="myChart"></canvas>
     </div>
 
     <script>
-        // Chart インスタンスの変数
+        // ✅ 実際のエンドポイントURLに書き換えてください
+        const endpoint = "https://[あなたのAPI-URL]/data_api/data/all";
+        const DEVICE_NAME = "temp_humi_bruce_20240620";
         let myChart;
 
-        function createChart() {
-            const ctx = document.getElementById('myChart').getContext('2d');
-
-            const data = {
-                labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-                datasets: [{
-                    label: 'サンプルデータ',
-                    data: [12, 19, 3, 5, 2, 3],
-                    borderWidth: 1,
-                    backgroundColor: [
-                        'rgba(255, 99, 132, 0.2)',
-                        'rgba(54, 162, 235, 0.2)',
-                        'rgba(255, 206, 86, 0.2)',
-                        'rgba(75, 192, 192, 0.2)',
-                        'rgba(153, 102, 255, 0.2)',
-                        'rgba(255, 159, 64, 0.2)'
-                    ],
-                    borderColor: [
-                        'rgba(255, 99, 132, 1)',
-                        'rgba(54, 162, 235, 1)',
-                        'rgba(255, 206, 86, 1)',
-                        'rgba(75, 192, 192, 1)',
-                        'rgba(153, 102, 255, 1)',
-                        'rgba(255, 159, 64, 1)'
-                    ]
-                }]
-            };
-
-            const config = {
-                type: 'bar',
-                data: data,
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
+        function fetchAndRenderChart() {
+            $.getJSON(endpoint)
+                .done(function (response) {
+                    const data = response[DEVICE_NAME];
+                    if (!data || data.length === 0) {
+                        alert("データがありません");
+                        return;
                     }
-                }
-            };
 
-            if (myChart) {
-                myChart.destroy(); // 古いチャートを破棄
-            }
+                    const labels = data.map(item => item.timestamp);
+                    const values = data.map(item => parseFloat(item.value));
 
-            myChart = new Chart(ctx, config);
+                    const ctx = document.getElementById('myChart').getContext('2d');
+                    const config = {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: '温度 (℃)',
+                                data: values,
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: false
+                                }
+                            }
+                        }
+                    };
+
+                    if (myChart) myChart.destroy();
+                    myChart = new Chart(ctx, config);
+                })
+                .fail(function (jqxhr, textStatus, error) {
+                    console.error("データ取得エラー:", textStatus, error);
+                    alert("データの取得に失敗しました");
+                });
         }
 
         $(document).ready(function () {
-            createChart(); // 初回ロード
-
-            // 100秒ごとに更新
-            setInterval(function () {
-                createChart();
-            }, 100000);
+            fetchAndRenderChart();                // 初回読み込み
+            setInterval(fetchAndRenderChart, 60000); // ← 60,000ミリ秒（= 1分）ごとに更新
         });
     </script>
 </body>
