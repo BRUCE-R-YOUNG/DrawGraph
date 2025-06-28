@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>温度データグラフ</title>
+    <title>温度・湿度データグラフ</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
@@ -13,20 +13,21 @@
     </style>
 </head>
 <body>
-    <h2 style="text-align: center;">温度推移（DynamoDB）</h2>
+    <h2 style="text-align: center;">温度・湿度の推移（DynamoDB）</h2>
     <div id="chart-container">
         <canvas id="myChart"></canvas>
     </div>
 
     <script>
-        // ✅ 実際のエンドポイントURLに書き換えてください
-        const endpoint = "https://[あなたのAPI-URL]/data_api/data/all";
-        const DEVICE_NAME = "temp_humi_bruce_20240620";
+        const endpoint = "{APIを呼び出すURL}/data/all";
+        const DEVICE_NAME = "temp_humi_fujiwara_20250624";
         let myChart;
 
         function fetchAndRenderChart() {
             $.getJSON(endpoint)
                 .done(function (response) {
+                    console.log("✅ 受信データ:", response);
+
                     const data = response[DEVICE_NAME];
                     if (!data || data.length === 0) {
                         alert("データがありません");
@@ -34,27 +35,61 @@
                     }
 
                     const labels = data.map(item => item.timestamp);
-                    const values = data.map(item => parseFloat(item.value));
+                    const temperatures = data.map(item => parseFloat(item.temperature));
+                    const humidities = data.map(item => parseFloat(item.humidity));
 
                     const ctx = document.getElementById('myChart').getContext('2d');
                     const config = {
                         type: 'line',
                         data: {
                             labels: labels,
-                            datasets: [{
-                                label: '温度 (℃)',
-                                data: values,
-                                borderColor: 'rgba(75, 192, 192, 1)',
-                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                                borderWidth: 2,
-                                tension: 0.3
-                            }]
+                            datasets: [
+                                {
+                                    label: '温度 (℃)',
+                                    data: temperatures,
+                                    borderColor: 'rgba(255, 99, 132, 1)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                    borderWidth: 2,
+                                    tension: 0.3,
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: '湿度 (%)',
+                                    data: humidities,
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                    borderWidth: 2,
+                                    tension: 0.3,
+                                    yAxisID: 'y1'
+                                }
+                            ]
                         },
                         options: {
                             responsive: true,
+                            interaction: {
+                                mode: 'index',
+                                intersect: false
+                            },
+                            stacked: false,
                             scales: {
                                 y: {
-                                    beginAtZero: false
+                                    type: 'linear',
+                                    position: 'left',
+                                    title: {
+                                        display: true,
+                                        text: '温度 (℃)'
+                                    }
+                                },
+                                y1: {
+                                    type: 'linear',
+                                    position: 'right',
+                                    title: {
+                                        display: true,
+                                        text: '湿度 (%)'
+                                    },
+                                    grid: {
+                                        drawOnChartArea: false
+                                    }
                                 }
                             }
                         }
@@ -70,8 +105,8 @@
         }
 
         $(document).ready(function () {
-            fetchAndRenderChart();                // 初回読み込み
-            setInterval(fetchAndRenderChart, 60000); // ← 60,000ミリ秒（= 1分）ごとに更新
+            fetchAndRenderChart();
+            setInterval(fetchAndRenderChart, 60000);
         });
     </script>
 </body>
