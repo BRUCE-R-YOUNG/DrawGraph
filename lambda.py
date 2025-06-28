@@ -6,11 +6,11 @@ import json
 import traceback
 import os
 
-# ----- Dynamo Info (必要に応じて環境変数から取得) -----
+# ----- Dynamo Info -----
 TABLE_NAME = os.environ.get('TABLE_NAME', "default")
 DDB_PRIMARY_KEY = "TIMESTAMP"
 DDB_SORT_KEY = "DEVICE_NAME"
-# -------------------------------------------------------
+# ------------------------
 
 print("TABLE_NAME:", TABLE_NAME)
 
@@ -40,13 +40,19 @@ def dynamoQuery(device_name, request_time):
 
     if 'Items' in res:
         for row in res['Items']:
-            if 'device_data' in row and 'TEMPERATURE' in row['device_data']:
-                val = row['device_data']['TEMPERATURE']
-                item_dict = {
-                    "timestamp": row['TIMESTAMP'],
-                    "value": str(val)
-                }
-                val_list.append(item_dict)
+            if 'device_data' in row:
+                device_data = row['device_data']
+                temperature = device_data.get('TEMPERATURE')
+                humidity = device_data.get('HUMIDITY')
+
+                # 温度または湿度が存在する場合のみ記録
+                if temperature is not None or humidity is not None:
+                    item_dict = {
+                        "timestamp": row['TIMESTAMP'],
+                        "temperature": str(temperature) if temperature is not None else None,
+                        "humidity": str(humidity) if humidity is not None else None
+                    }
+                    val_list.append(item_dict)
 
     return val_list
 
@@ -69,7 +75,7 @@ def lambda_handler(event, context):
         print("lambda_handler start")
         print(json.dumps(event))
 
-        DEVICE_NAME = "temp_humi_bruce_20240620"
+        DEVICE_NAME = "temp_humi_fujiwara_20250624"
         request_time = "1970-01-01T00:00:00"
 
         print("Request Time: ", request_time)
