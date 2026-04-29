@@ -1,92 +1,64 @@
 from __future__ import print_function
 import boto3
-from boto3.dynamodb.conditions import Attr
-import datetime
+from decimal import Decimal
 import json
 import traceback
 import os
 
-# ----- Dynamo Info -----
 TABLE_NAME = os.environ.get('TABLE_NAME', "default")
-DDB_PRIMARY_KEY = "TIMESTAMP"
-DDB_SORT_KEY = "DEVICE_NAME"
-# ------------------------
+DEVICE_NAME = os.environ.get('DEVICE_NAME', "temp_humi_fujiwara_20260427")
 
 print("TABLE_NAME:", TABLE_NAME)
+print("DEVICE_NAME:", DEVICE_NAME)
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(TABLE_NAME)
 
-# ------------------------------------------------------------------------
 
-
-def dynamoQuery(device_name, request_time):
-    print("dynamoQuery start")
-    val_list = []
-    print(
-        f"Query parameters - DEVICE_NAME: {device_name}, requestTime: {request_time}")
-
-    try:
-        res = table.scan(
-            FilterExpression=Attr("DEVICE_NAME").eq(
-                device_name) & Attr("TIMESTAMP").gte(request_time),
-            Limit=30
-        )
-    except Exception as e:
-        print("Error executing scan: ", e)
-        raise e
-
-    print("Scan result: ", res)
-
-    if 'Items' in res:
-        for row in res['Items']:
-            if 'device_data' in row:
-                device_data = row['device_data']
-                temperature = device_data.get('TEMPERATURE')
-                humidity = device_data.get('HUMIDITY')
-
-                # 温度または湿度が存在する場合のみ記録
-                if temperature is not None or humidity is not None:
-                    item_dict = {
-                        "timestamp": row['TIMESTAMP'],
-                        "temperature": str(temperature) if temperature is not None else None,
-                        "humidity": str(humidity) if humidity is not None else None
-                    }
-                    val_list.append(item_dict)
-
-    return val_list
-
-# ------------------------------------------------------------------------
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            if obj % 1 == 0:
+                return int(obj)
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
 
 
 def lambda_handler(event, context):
-    http_res = {
-        "statusCode": 200,
-        "headers": {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET,OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
-        },
-        "body": "",
-        "isBase64Encoded": False
-    }
-
     try:
         print("lambda_handler start")
-        print(json.dumps(event))
 
-        DEVICE_NAME = "temp_humi_fujiwara_20250624"
-        request_time = "1970-01-01T00:00:00"
+        # フィルターなしで、とりあえず5件取得
+        res = table.scan(Limit=5)
 
-        print("Request Time: ", request_time)
+        print("Scan Count:", res.get("Count"))
+        print("ScannedCount:", res.get("ScannedCount"))
+        print("Items:")
+        print(json.dumps(res.get("Items", []),
+              cls=DecimalEncoder, ensure_ascii=False, indent=2))
 
-        res_item_dict = {DEVICE_NAME: dynamoQuery(DEVICE_NAME, request_time)}
-        http_res['body'] = json.dumps(res_item_dict)
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps(
+                {
+                    "table": TABLE_NAME,
+                    "device": DEVICE_NAME,
+                    "count": res.get("Count"),
+                    "scanned_count": res.get("ScannedCount"),
+                    "items": res.get("Items", [])
+                },
+                cls=DecimalEncoder,
+                ensure_ascii=False
+            ),
+            "isBase64Encoded": False
+        }
 
-    except Exception as e:
+    except Exception:
         print(traceback.format_exc())
-        http_res["statusCode"] = 500
-        http_res["body"] = "Lambda error. check lambda log"
-
-    print("response:", json.dumps(http_res))
-    return http_res
+        return {
+            "statusCode": 500,
+            "body": "Lambda error. check lambda log"
+        }
