@@ -70,6 +70,7 @@
       padding: 24px;
       border-radius: 14px;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+      display: none;
     }
 
     canvas {
@@ -164,6 +165,7 @@
       for (const value of Object.values(obj)) {
         if (typeof value === "object" && value !== null) {
           const found = findValue(value, keys);
+
           if (found !== undefined && found !== null && found !== "") {
             return found;
           }
@@ -210,7 +212,7 @@
     }
 
     function timestampToDate(timestamp) {
-      let ts = Number(timestamp);
+      const ts = Number(timestamp);
 
       if (isNaN(ts)) {
         return null;
@@ -263,33 +265,55 @@
     }
 
     function getValidData(data) {
-      const validData = data.map(item => {
-        const timestamp = getTimestamp(item);
-        const temperature = getTemperature(item);
-        const humidity = getHumidity(item);
+      return data
+        .map(item => {
+          const timestamp = getTimestamp(item);
+          const temperature = getTemperature(item);
+          const humidity = getHumidity(item);
 
-        return {
-          timestamp: timestamp,
-          date: formatDateOnly(timestamp),
-          label: formatDateTime(timestamp),
-          temperature: temperature,
-          humidity: humidity
-        };
-      }).filter(item => {
-        return (
-          !isNaN(item.timestamp) &&
-          !isNaN(item.temperature) &&
-          !isNaN(item.humidity) &&
-          item.date !== ""
-        );
-      }).sort((a, b) => a.timestamp - b.timestamp);
+          return {
+            timestamp: timestamp,
+            date: formatDateOnly(timestamp),
+            label: formatDateTime(timestamp),
+            temperature: temperature,
+            humidity: humidity
+          };
+        })
+        .filter(item => {
+          return (
+            !isNaN(item.timestamp) &&
+            !isNaN(item.temperature) &&
+            !isNaN(item.humidity) &&
+            item.date !== ""
+          );
+        })
+        .sort((a, b) => a.timestamp - b.timestamp);
+    }
 
-      console.log("✅ 変換後の有効データ:", validData);
+    function showChartContainer() {
+      document.getElementById("chart-container").style.display = "block";
+    }
 
-      return validData;
+    function hideChartContainer() {
+      document.getElementById("chart-container").style.display = "none";
+    }
+
+    function clearChart() {
+      if (myChart) {
+        myChart.destroy();
+        myChart = null;
+      }
+
+      hideChartContainer();
+    }
+
+    function hideAverageTable() {
+      document.getElementById("average-table").style.display = "none";
     }
 
     function drawChart(labels, temperatures, humidities, chartType) {
+      showChartContainer();
+
       const ctx = document.getElementById("myChart").getContext("2d");
 
       if (myChart) {
@@ -376,15 +400,16 @@
 
     function showAllData() {
       document.getElementById("averageSelect").value = "";
-      document.getElementById("average-table").style.display = "none";
+      hideAverageTable();
 
       const validData = getValidData(allData);
 
       if (validData.length === 0) {
+        clearChart();
+
         document.getElementById("status").textContent =
           "温度・湿度として使えるデータがありません";
 
-        console.log("❌ 元データの1件目:", allData[0]);
         return;
       }
 
@@ -400,7 +425,7 @@
 
     function showSelectedDate() {
       document.getElementById("averageSelect").value = "";
-      document.getElementById("average-table").style.display = "none";
+      hideAverageTable();
 
       const selectedDate = document.getElementById("datePicker").value;
 
@@ -413,8 +438,11 @@
         .filter(item => item.date === selectedDate);
 
       if (validData.length === 0) {
+        clearChart();
+
         document.getElementById("status").textContent =
           `${selectedDate} のデータはありません`;
+
         return;
       }
 
@@ -459,11 +487,16 @@
     }
 
     function showDailyAverage() {
+      hideAverageTable();
+
       const averages = calculateDailyAverage();
 
       if (averages.length === 0) {
+        clearChart();
+
         document.getElementById("status").textContent =
           "平均値を計算できるデータがありません";
+
         return;
       }
 
@@ -479,6 +512,8 @@
     }
 
     function showSelectedDateAverage() {
+      hideAverageTable();
+
       const selectedDate = document.getElementById("datePicker").value;
 
       if (!selectedDate) {
@@ -490,8 +525,11 @@
         .filter(item => item.date === selectedDate);
 
       if (averages.length === 0) {
+        clearChart();
+
         document.getElementById("status").textContent =
           `${selectedDate} の平均値を計算できません`;
+
         return;
       }
 
@@ -548,31 +586,41 @@
           allData = response.items || [];
 
           if (allData.length === 0) {
-            document.getElementById("status").textContent = "データがありません";
+            clearChart();
+
+            document.getElementById("status").textContent =
+              "データがありません";
+
             return;
           }
-
-          console.log("✅ 元データ1件目:", allData[0]);
-          console.log("✅ device_data:", allData[0].device_data);
 
           const validData = getValidData(allData);
 
           if (validData.length === 0) {
+            clearChart();
+
             document.getElementById("status").textContent =
               "温度・湿度として使えるデータがありません";
 
-            console.log("❌ 取得失敗。元データ1件目:", allData[0]);
             return;
           }
 
           const latestDate = validData[validData.length - 1].date;
-          document.getElementById("datePicker").value = latestDate;
+
+          if (latestDate) {
+            document.getElementById("datePicker").value = latestDate;
+          }
 
           showAllData();
         })
         .fail(function (jqxhr, textStatus, error) {
           console.error("データ取得エラー:", textStatus, error);
-          document.getElementById("status").textContent = "データ取得エラー";
+
+          clearChart();
+
+          document.getElementById("status").textContent =
+            "データ取得エラー";
+
           alert("データの取得に失敗しました");
         });
     }
@@ -584,7 +632,9 @@
 
       fetchData();
 
-      setInterval(fetchData, 60000);
+      setInterval(function () {
+        fetchData();
+      }, 60000);
     });
   </script>
 
