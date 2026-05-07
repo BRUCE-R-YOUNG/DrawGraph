@@ -28,27 +28,44 @@ def lambda_handler(event, context):
     try:
         print("lambda_handler start")
 
-        # フィルターなしで、とりあえず5件取得
-        res = table.scan(Limit=5)
+        items = []
+        scanned_count = 0
 
-        print("Scan Count:", res.get("Count"))
-        print("ScannedCount:", res.get("ScannedCount"))
-        print("Items:")
-        print(json.dumps(res.get("Items", []),
-              cls=DecimalEncoder, ensure_ascii=False, indent=2))
+        # 最初のscan
+        response = table.scan()
+
+        items.extend(response.get("Items", []))
+        scanned_count += response.get("ScannedCount", 0)
+
+        # まだ続きがある場合、繰り返し取得
+        while "LastEvaluatedKey" in response:
+            response = table.scan(
+                ExclusiveStartKey=response["LastEvaluatedKey"]
+            )
+
+            items.extend(response.get("Items", []))
+            scanned_count += response.get("ScannedCount", 0)
+
+        print("Total Count:", len(items))
+        print("Total ScannedCount:", scanned_count)
+
+        # TIMESTAMP順に並び替え
+        items.sort(key=lambda x: int(x.get("TIMESTAMP", 0)))
 
         return {
             "statusCode": 200,
             "headers": {
-                "Access-Control-Allow-Origin": "*"
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
             },
             "body": json.dumps(
                 {
                     "table": TABLE_NAME,
                     "device": DEVICE_NAME,
-                    "count": res.get("Count"),
-                    "scanned_count": res.get("ScannedCount"),
-                    "items": res.get("Items", [])
+                    "count": len(items),
+                    "scanned_count": scanned_count,
+                    "items": items
                 },
                 cls=DecimalEncoder,
                 ensure_ascii=False
@@ -58,7 +75,17 @@ def lambda_handler(event, context):
 
     except Exception:
         print(traceback.format_exc())
+
         return {
             "statusCode": 500,
-            "body": "Lambda error. check lambda log"
+            "headers": {
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps(
+                {
+                    "message": "Lambda error. check lambda log"
+                },
+                ensure_ascii=False
+            ),
+            "isBase64Encoded": False
         }
